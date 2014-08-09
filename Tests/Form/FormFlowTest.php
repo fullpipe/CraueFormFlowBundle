@@ -201,13 +201,13 @@ class FormFlowTest extends UnitTestCase {
 		$this->assertSame($request, $flow->getRequest());
 	}
 
-	public function testSetGetStorage() {
+	public function testSetGetDataManager() {
 		$flow = $this->getMockedFlow();
 
-		$storage = $this->getMockedStorageInterface();
-		$flow->setStorage($storage);
+		$dataManager = $this->getMockedDataManagerInterface();
+		$flow->setDataManager($dataManager);
 
-		$this->assertSame($storage, $flow->getStorage());
+		$this->assertSame($dataManager, $flow->getDataManager());
 	}
 
 	public function testSetGetId() {
@@ -253,15 +253,6 @@ class FormFlowTest extends UnitTestCase {
 		$flow->setFormTransitionKey($formTransitionKey);
 
 		$this->assertEquals($formTransitionKey, $flow->getFormTransitionKey());
-	}
-
-	public function testSetGetStepDataKey() {
-		$flow = $this->getMockedFlow();
-
-		$stepDataKey = 'step-data-key';
-		$flow->setStepDataKey($stepDataKey);
-
-		$this->assertEquals($stepDataKey, $flow->getStepDataKey());
 	}
 
 	public function testSetGetValidationGroupPrefix() {

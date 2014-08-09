@@ -10,8 +10,7 @@ use Craue\FormFlowBundle\Event\PostValidateEvent;
 use Craue\FormFlowBundle\Event\PreBindEvent;
 use Craue\FormFlowBundle\Event\PreviousStepInvalidEvent;
 use Craue\FormFlowBundle\Exception\InvalidTypeException;
-use Craue\FormFlowBundle\Storage\SerializableFile;
-use Craue\FormFlowBundle\Storage\StorageInterface;
+use Craue\FormFlowBundle\Storage\DataManagerInterface;
 use Craue\FormFlowBundle\Util\StringUtil;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -37,9 +36,9 @@ abstract class FormFlow implements FormFlowInterface {
 	protected $formFactory;
 
 	/**
-	 * @var StorageInterface
+	 * @var DataManagerInterface
 	 */
-	protected $storage;
+	protected $dataManager;
 
 	/**
 	 * @var EventDispatcherInterface|null
@@ -119,11 +118,6 @@ abstract class FormFlow implements FormFlowInterface {
 	/**
 	 * @var string|null Is only null if not yet initialized.
 	 */
-	private $stepDataKey = null;
-
-	/**
-	 * @var string|null Is only null if not yet initialized.
-	 */
 	private $validationGroupPrefix = null;
 
 	/**
@@ -191,15 +185,15 @@ abstract class FormFlow implements FormFlowInterface {
 	/**
 	 * {@inheritDoc}
 	 */
-	public function setStorage(StorageInterface $storage) {
-		$this->storage = $storage;
+	public function setDataManager(DataManagerInterface $dataManager) {
+		$this->dataManager = $dataManager;
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
-	public function getStorage() {
-		return $this->storage;
+	public function getDataManager() {
+		return $this->dataManager;
 	}
 
 	/**
@@ -240,6 +234,9 @@ abstract class FormFlow implements FormFlowInterface {
 		$this->instanceId = $instanceId;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	public function getInstanceId() {
 		if ($this->instanceId === null) {
 			$this->instanceId = $this->getId();
@@ -270,18 +267,6 @@ abstract class FormFlow implements FormFlowInterface {
 		}
 
 		return $this->formTransitionKey;
-	}
-
-	public function setStepDataKey($stepDataKey) {
-		$this->stepDataKey = $stepDataKey;
-	}
-
-	public function getStepDataKey() {
-		if ($this->stepDataKey === null) {
-			$this->stepDataKey = $this->getId() . '_data';
-		}
-
-		return $this->stepDataKey;
 	}
 
 	public function setValidationGroupPrefix($validationGroupPrefix) {
@@ -438,7 +423,7 @@ abstract class FormFlow implements FormFlowInterface {
 	 * {@inheritDoc}
 	 */
 	public function reset() {
-		$this->storage->remove($this->getStepDataKey());
+		$this->dataManager->drop($this);
 		$this->currentStepNumber = $this->getFirstStepNumber();
 
 		// re-evaluate to not keep steps marked as skipped when resetting
@@ -575,7 +560,6 @@ abstract class FormFlow implements FormFlowInterface {
 	 */
 	public function bind($formData) {
 		$this->setInstanceId($this->determineInstanceId());
-		$this->setStepDataKey($this->getId() . '_data_' . $this->getInstanceId());
 
 		if ($this->hasListeners(FormFlowEvents::PRE_BIND)) {
 			$event = new PreBindEvent($this);
@@ -928,30 +912,11 @@ abstract class FormFlow implements FormFlowInterface {
 	}
 
 	protected function retrieveStepData() {
-		$data = $this->storage->get($this->getStepDataKey(), array());
-
-		if ($this->handleFileUploads) {
-			$tempDir = $this->handleFileUploadsTempDir;
-			array_walk_recursive($data, function(&$value, $key) use ($tempDir) {
-				if ($value instanceof SerializableFile) {
-					$value = $value->getAsFile($tempDir);
-				}
-			});
-		}
-
-		return $data;
+		return $this->dataManager->load($this);
 	}
 
 	protected function saveStepData(array $data) {
-		if ($this->handleFileUploads) {
-			array_walk_recursive($data, function(&$value, $key) {
-				if (SerializableFile::isSupported($value)) {
-					$value = new SerializableFile($value);
-				}
-			});
-		}
-
-		$this->storage->set($this->getStepDataKey(), $data);
+		$this->dataManager->save($this, $data);
 	}
 
 	/**
