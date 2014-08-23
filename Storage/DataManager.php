@@ -7,6 +7,17 @@ use Craue\FormFlowBundle\Form\FormFlowInterface;
 /**
  * Manages data of flows and their steps.
  *
+ * It uses the following data structure with {@link DataManagerInterface::STORAGE_ROOT} as name of the root element within the storage:
+ * <code>
+ * 	DataManagerInterface::STORAGE_ROOT => array(
+ * 		name of the flow => array(
+ * 			instance id of the flow => array(
+ * 				'data' => array() // the actual step data
+ * 			)
+ * 		)
+ * 	)
+ * </code>
+ *
  * @author Christian Raue <christian.raue@gmail.com>
  * @copyright 2011-2014 Christian Raue
  * @license http://opensource.org/licenses/mit-license.php MIT License
@@ -14,9 +25,14 @@ use Craue\FormFlowBundle\Form\FormFlowInterface;
 class DataManager implements ExtendedDataManagerInterface {
 
 	/**
+	 * @var string Key for the actual step data.
+	 */
+	const DATA_KEY = 'data';
+
+	/**
 	 * @var StorageInterface
 	 */
-	protected $storage;
+	private $storage;
 
 	/**
 	 * @param StorageInterface $storage
@@ -50,7 +66,15 @@ class DataManager implements ExtendedDataManagerInterface {
 
 		// save new data
 		$savedFlows = $this->storage->get(DataManagerInterface::STORAGE_ROOT, array());
-		$savedFlows[] = new FlowData($flow->getName(), $flow->getInstanceId(), $data);
+
+		$savedFlows = array_merge_recursive($savedFlows, array(
+			$flow->getName() => array(
+				$flow->getInstanceId() => array(
+					self::DATA_KEY => $data,
+				),
+			),
+		));
+
 		$this->storage->set(DataManagerInterface::STORAGE_ROOT, $savedFlows);
 	}
 
@@ -58,27 +82,25 @@ class DataManager implements ExtendedDataManagerInterface {
 	 * {@inheritDoc}
 	 */
 	public function load(FormFlowInterface $flow) {
-		$loadedData = array();
+		$data = array();
 
 		// try to find data for the given flow
-		foreach ($this->storage->get(DataManagerInterface::STORAGE_ROOT, array()) as $flowData) {
-			if ($flowData->getName() === $flow->getName() && $flowData->getInstanceId() === $flow->getInstanceId()) {
-				$loadedData = $flowData->getData();
-				break;
-			}
+		$savedFlows = $this->storage->get(DataManagerInterface::STORAGE_ROOT, array());
+		if (isset($savedFlows[$flow->getName()][$flow->getInstanceId()][self::DATA_KEY])) {
+			$data = $savedFlows[$flow->getName()][$flow->getInstanceId()][self::DATA_KEY];
 		}
 
 		// handle file uploads
 		if ($flow->isHandleFileUploads()) {
 			$tempDir = $flow->getHandleFileUploadsTempDir();
-			array_walk_recursive($loadedData, function(&$value, $key) use ($tempDir) {
+			array_walk_recursive($data, function(&$value, $key) use ($tempDir) {
 				if ($value instanceof SerializableFile) {
 					$value = $value->getAsFile($tempDir);
 				}
 			});
 		}
 
-		return $loadedData;
+		return $data;
 	}
 
 	/**
@@ -87,42 +109,32 @@ class DataManager implements ExtendedDataManagerInterface {
 	public function drop(FormFlowInterface $flow) {
 		$savedFlows = $this->storage->get(DataManagerInterface::STORAGE_ROOT, array());
 
-		// remove old data for only this flow instance
-		$otherFlows = array_filter($savedFlows, function($flowData) use ($flow) {
-			return !($flowData->getName() === $flow->getName() && $flowData->getInstanceId() === $flow->getInstanceId());
-		});
+		// remove data for only this flow instance
+		if (isset($savedFlows[$flow->getName()][$flow->getInstanceId()])) {
+			unset($savedFlows[$flow->getName()][$flow->getInstanceId()]);
+		}
 
-		$this->storage->set(DataManagerInterface::STORAGE_ROOT, $otherFlows);
+		$this->storage->set(DataManagerInterface::STORAGE_ROOT, $savedFlows);
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function listFlows() {
-		$flows = array();
-
-		foreach ($this->storage->get(DataManagerInterface::STORAGE_ROOT, array()) as $flowData) {
-			if (!in_array($flowData->getName(), $flows)) {
-				$flows[] = $flowData->getName();
-			}
-		}
-
-		return $flows;
+		return array_keys($this->storage->get(DataManagerInterface::STORAGE_ROOT, array()));
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function listInstances($name) {
-		$instances = array();
+		$savedFlows = $this->storage->get(DataManagerInterface::STORAGE_ROOT, array());
 
-		foreach ($this->storage->get(DataManagerInterface::STORAGE_ROOT, array()) as $flowData) {
-			if ($flowData->getName() === $name) {
-				$instances[] = $flowData->getInstanceId();
-			}
+		if (array_key_exists($name, $savedFlows)) {
+			return array_keys($savedFlows[$name]);
 		}
 
-		return $instances;
+		return array();
 	}
 
 	/**

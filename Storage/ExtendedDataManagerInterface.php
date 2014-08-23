@@ -3,7 +3,7 @@
 namespace Craue\FormFlowBundle\Storage;
 
 /**
- * Extends the base DataManagerInterface by methods which may be used for custom flow management.
+ * Extends the base {@link DataManagerInterface} by methods which may be used for custom flow management.
  *
  * @author Christian Raue <christian.raue@gmail.com>
  * @copyright 2011-2014 Christian Raue

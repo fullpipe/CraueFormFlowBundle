@@ -134,6 +134,13 @@ class DataManagerTest extends UnitTestCase {
 		$this->assertEquals($expectedResult, $this->dataManager->listFlows());
 	}
 
+	/**
+	 * Ensure that even without any data an array is returned.
+	 */
+	public function testListFlows_emptyStorage() {
+		$this->assertEquals(array(), $this->dataManager->listFlows());
+	}
+
 	public function testListInstances() {
 		// create three flows
 		$createLocationFlow1 = $this->getFlow($this->createLocationFlowName, $this->createLocationFlowInstanceId);
@@ -151,6 +158,13 @@ class DataManagerTest extends UnitTestCase {
 			'other-instance',
 		);
 		$this->assertEquals($expectedResult, $this->dataManager->listInstances($this->createLocationFlowName));
+	}
+
+	/**
+	 * Ensure that even without any data an array is returned.
+	 */
+	public function testListInstances_emptyStorage() {
+		$this->assertEquals(array(), $this->dataManager->listInstances('whatever'));
 	}
 
 	public function testDropAll() {
